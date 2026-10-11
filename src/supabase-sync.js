@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+const { createClient } = require('@supabase/supabase-js');
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -43,9 +43,11 @@ async function syncDataToSupabase() {
   }
 }
 
-export function startSupabaseSync() {
+function startSupabaseSync() {
   if (supabase) {
     console.log('Cloud Supabase sync worker gestart...');
     setInterval(syncDataToSupabase, 4000);
   }
 }
+
+module.exports = { startSupabaseSync };
