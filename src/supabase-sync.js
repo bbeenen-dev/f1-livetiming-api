@@ -8,7 +8,10 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 }
 
 const supabase = (SUPABASE_URL && SUPABASE_KEY) ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
-const API_URL = 'http://localhost:3000/api/standings';
+
+// Dynamische poort ophalen zodat deze exact matcht met Render (bijv. poort 10000)
+const PORT = process.env.PORT || 3000;
+const API_URL = `http://localhost:${PORT}/api/standings`;
 
 async function syncDataToSupabase() {
   if (!supabase) return;
@@ -37,15 +40,15 @@ async function syncDataToSupabase() {
         .from('actual_standings')
         .upsert(positionData, { onConflict: ['driver_number'] });
     }
-    console.log('F1 standen geüpdatet in Supabase!');
+    console.log('[Sync] F1 standen geüpdatet in Supabase!');
   } catch (err) {
-    console.error('Fout bij cloud-sync:', err.message);
+    console.error('[Sync] Fout bij cloud-sync:', err.message);
   }
 }
 
 function startSupabaseSync() {
   if (supabase) {
-    console.log('Cloud Supabase sync worker gestart...');
+    console.log('[Sync] Cloud Supabase sync worker gestart...');
     setInterval(syncDataToSupabase, 4000);
   }
 }
