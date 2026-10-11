@@ -85,6 +85,7 @@ app.use((req, res) => {
 
 // Start listening for HTTP requests
 const server = app.listen(PORT, () => {
+    startSupabaseSync();
     console.log(`\n====================================================================`);
     console.log(`  F1 Live Timing REST API Running`);
     console.log(`  Port: http://localhost:${PORT}`);
