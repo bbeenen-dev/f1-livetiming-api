@@ -13,6 +13,7 @@ const { createStandingsRouter } = require('./routes/standings');
 const { createTyresRouter } = require('./routes/tyres');
 const { createDriversRouter } = require('./routes/drivers');
 const { createSessionRouter } = require('./routes/session');
+const { startSupabaseSync } = require('./supabase-sync');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
