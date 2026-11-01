@@ -9,32 +9,30 @@ if (!SUPABASE_URL || !SUPABASE_KEY) {
 
 const supabase = (SUPABASE_URL && SUPABASE_KEY) ? createClient(SUPABASE_URL, SUPABASE_KEY) : null;
 
-// Dynamische poort ophalen zodat deze exact matcht met Render (bijv. poort 10000 of 3000)
 const PORT = process.env.PORT || 3000;
 const API_URL = `http://localhost:${PORT}/api/standings`;
 
 /**
- * Bepaalt automatisch welk `id` uit jouw `races` tabel vandaag actief is.
- * Kijkt naar races waarvan `race_start` op de huidige kalenderdag valt.
+ * Bepaalt automatisch welk `id` actief is op basis van een tijdskader van 6 uur rondom nu.
  */
 async function getActiveRaceId() {
   if (!supabase) return null;
 
   try {
     const now = new Date();
-    // Bepaal de grenzen van vandaag in UTC
-    const startOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 0, 0, 0)).toISOString();
-    const endOfToday = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 23, 59, 59)).toISOString();
+    // 6 uur terug en 6 uur vooruit vanaf nu
+    const windowStart = new Date(now.getTime() - (6 * 60 * 60 * 1000)).toISOString();
+    const windowEnd = new Date(now.getTime() + (6 * 60 * 60 * 1000)).toISOString();
 
     const { data, error } = await supabase
       .from('races')
       .select('id, race_name')
-      .gte('race_start', startOfToday)
-      .lte('race_start', endOfToday)
+      .gte('race_start', windowStart)
+      .lte('race_start', windowEnd)
       .limit(1);
 
     if (!error && data && data.length > 0) {
-      return data[0].id; // Retourneert het ID van de race die vandaag plaatsvindt (bijv. 20)
+      return data[0].id; // Dit pakt nu direct ID 20 (Mexico)
     }
   } catch (err) {
     console.error('[Sync] Fout bij bepalen actieve race:', err.message);
@@ -53,7 +51,7 @@ async function syncDataToSupabase() {
     const data = await response.json();
     if (!data || !data.Leaderboard) return;
 
-    // 1. Bouw een lookup map van live posities op basis van TLA (bijv. { "VER": 1, "NOR": 4, ... })
+    // 1. Live posities bijwerken in `actual_standings`
     const livePositionsByTla = {};
 
     for (const driverNumber of data.Leaderboard) {
@@ -81,20 +79,19 @@ async function syncDataToSupabase() {
         .upsert(positionData, { onConflict: ['driver_number'] });
     }
 
-    // 2. Bepaal welke race er VANDAAG op het programma staat
+    // 2. Punten berekenen voor de actieve race
     const activeRaceId = await getActiveRaceId();
 
-    // Alleen punten berekenen als er vandaag daadwerkelijk een race is
     if (activeRaceId) {
       const { data: predictions, error: predError } = await supabase
         .from('predictions_race')
         .select('*')
-        .eq('race_id', activeRaceId); // <--- FILTERT EXCLUSIEF OP DE ACTIEVE RACE VAN VANDAAG!
+        .eq('race_id', activeRaceId);
 
       if (!predError && predictions && predictions.length > 0) {
         for (const pred of predictions) {
           const userId = pred.user_id || pred.numberuser_id;
-          const top10 = pred.top_10_drivers; // Array van TLA's: ["RUS", "ANT", ...]
+          const top10 = pred.top_10_drivers;
 
           if (!userId || !Array.isArray(top10)) continue;
 
@@ -115,7 +112,6 @@ async function syncDataToSupabase() {
             }
           });
 
-          // Schrijf de punten weg naar `actual_scores` voor dit specifieke activeRaceId
           await supabase
             .from('actual_scores')
             .upsert({
@@ -134,7 +130,7 @@ async function syncDataToSupabase() {
 
 function startSupabaseSync() {
   if (supabase) {
-    console.log('[Sync] Cloud Supabase sync worker gestart (inclusief actieve race filter)...');
+    console.log('[Sync] Cloud Supabase sync worker gestart...');
     setInterval(syncDataToSupabase, 4000);
   }
 }
